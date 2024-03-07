@@ -2,12 +2,16 @@
 % tricks yet. Achieves TE in the range of 300-400 us
 
 % set system limits
+% sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
+%     'MaxSlew', 100, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
+%     'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
+
 sys = mr.opts('MaxGrad', 28, 'GradUnit', 'mT/m', ...
     'MaxSlew', 100, 'SlewUnit', 'T/m/s', 'rfRingdownTime', 20e-6, ...
-    'rfDeadTime', 100e-6, 'adcDeadTime', 10e-6);
+    'rfDeadTime', 10e-6, 'adcDeadTime', 10e-6);
 
 seq=mr.Sequence(sys);           % Create a new sequence object
-fov=250e-3; Nx=256;             % Define FOV and resolution
+fov=250e-3; Nx=128;             % Define FOV and resolution
 alpha=10;                       % flip angle
 sliceThickness=3e-3;            % slice
 TR=10e-3;                       % TR
@@ -38,6 +42,7 @@ gxPre = mr.makeTrapezoid('x','Area',-(gx.area-ro_area)/2 -gx.amplitude*adc.dwell
 
 % gradient spoiling
 gxSpoil=mr.makeTrapezoid('x','Area',0.2*Nx*deltak,'system',sys);
+%gxSpoil=mr.makeTrapezoid('z','Area',0.2*Nx*deltak,'system',sys);
 
 % Calculate timing
 %ceil((TE - mr.calcDuration(gxPre) - gz.fallTime - gz.flatTime/2 ...
@@ -90,21 +95,21 @@ else
 end
 
 %%
-seq.plot();
+% seq.plot();
 
 %% plot gradients to check for gaps and optimality of the timing
 gw=seq.waveforms_and_times();
-figure; plot(gw{1}(1,:),gw{1}(2,:),gw{2}(1,:),gw{2}(2,:),gw{3}(1,:),gw{3}(2,:)); % plot the entire gradient shape
+% figure; plot(gw{1}(1,:),gw{1}(2,:),gw{2}(1,:),gw{2}(2,:),gw{3}(1,:),gw{3}(2,:)); % plot the entire gradient shape
 
 %% k-space trajectory calculation
 [ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 
 % plot k-spaces
-figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
-hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
-figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
-axis('equal'); % enforce aspect ratio for the correct trajectory display
-hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
+% figure; plot(t_ktraj, ktraj'); % plot the entire k-space trajectory
+% hold; plot(t_adc,ktraj_adc(1,:),'.'); % and sampling points on the kx-axis
+% figure; plot(ktraj(1,:),ktraj(2,:),'b'); % a 2D plot
+% axis('equal'); % enforce aspect ratio for the correct trajectory display
+% hold;plot(ktraj_adc(1,:),ktraj_adc(2,:),'r.'); % plot the sampling points
 
 %
 seq.setDefinition('FOV', [fov fov sliceThickness]);
