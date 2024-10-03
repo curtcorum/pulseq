@@ -76,7 +76,7 @@ if ~isempty(opt.pythonCmd)
     if status~=0
         error(['provided python executable ''' opt.pythonCmd ''' returns an error on the version check']);
     end
-    python='python';
+    python=opt.pythonCmd;
 elseif ispc()
     % on Windows we rely on the PATH settings
     [status, result]=system('python --version');
@@ -108,12 +108,12 @@ add_opt='';
 
 switch opt.use
     case 'excitation'
-        if opt.flipAngle <= pi/6
-            ptype='st';
-        else
+        %if opt.flipAngle <= pi/6
+        %    ptype='st';
+        %else
             ptype='ex';
             %add_opt=',cancel_alpha_phs=True';
-        end
+        %end
     case 'refocusing'
         ptype='se';
     case 'inversion'
@@ -211,6 +211,12 @@ end
 % end
 if rf.ringdownTime > 0 && nargout > 3
     delay=mr.makeDelay(mr.calcDuration(rf)+rf.ringdownTime);
-end    
+end
+
+% RF amplitude check
+rf_amplitude=max(abs(rf.signal));
+if rf_amplitude>opt.system.maxB1
+    warning('WARNING: system maximum RF amplitude exceeded (%.01f%%)', rf_amplitude/opt.system.maxB1*100);
+end
 
 end
