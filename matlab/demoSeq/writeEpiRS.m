@@ -26,10 +26,12 @@ sat_freq=sat_ppm*1e-6*sys.B0*sys.gamma;
 rf_fs = mr.makeGaussPulse(110*pi/180,'system',sys,'Duration',8e-3,'dwell',10e-6,...
     'bandwidth',abs(sat_freq),'freqOffset',sat_freq,'use','saturation');
 rf_fs.phaseOffset=-2*pi*rf_fs.freqOffset*mr.calcRfCenter(rf_fs); % compensate for the frequency-offset induced phase    
+rf_fs.name='fat-sat'; % useful for debugging, can be seen in seq.plot
 gz_fs = mr.makeTrapezoid('z',sys,'delay',mr.calcDuration(rf_fs),'Area',0.1/1e-4); % spoil up to 0.1mm
 % Create 90 degree slice selection pulse and gradient
 [rf, gz, gzReph] = mr.makeSincPulse(pi/2,'system',sys,'Duration',2e-3,...
     'SliceThickness',thickness,'apodization',0.42,'timeBwProduct',4,'use','excitation');
+rf.name='rf90'; % useful for debugging, can be seen in seq.plot
 
 % define the output trigger to play out with every slice excitatuion
 trig=mr.makeDigitalOutputPulse('osc0','duration', 100e-6); % possible channels: 'osc0','osc1','ext1'
@@ -55,6 +57,7 @@ actual_area=gx.area-gx.amplitude/gx.riseTime*blip_dur/2*blip_dur/2/2-gx.amplitud
 gx.amplitude=gx.amplitude/actual_area*kWidth;
 gx.area = gx.amplitude*(gx.flatTime + gx.riseTime/2 + gx.fallTime/2);
 gx.flatArea = gx.amplitude*gx.flatTime;
+gx.name='Gro'; % useful for debugging, can be seen in seq.plot
 
 % calculate ADC
 % we use ramp sampling, so we have to calculate the dwell time and the
@@ -137,7 +140,7 @@ end
 
 %% do some visualizations
 
-seq.plot();             % Plot all sequence waveforms
+seq.plot('stacked', 1);             % Plot all sequence waveforms in the new 'stacked' mode
 
 seq.plot('timeDisp','us','showBlocks',1,'timeRange',[0 25e-3]); %detailed view
 
@@ -169,6 +172,7 @@ title('slice position (vector components) as a function or time');
 %% prepare the sequence output for the scanner
 seq.setDefinition('Name', 'epi'); 
 seq.setDefinition('FOV', [fov fov max(slicePositions)-min(slicePositions)+thickness]);
+seq.setDefinition('ReceiverGainHigh',1);
 % the following definitions only have effect in conjunction with LABELs 
 %seq.setDefinition('SlicePositions', slicePositions);
 %seq.setDefinition('SliceThickness', thickness);
@@ -179,43 +183,12 @@ seq.write('epi_rs.seq');
 % seq.install('siemens');
 
 % seq.sound(); % simulate the seq's tone
-return;
 
-%% another manual pretty plot option for gradients
+%% another pretty plot option e.g. for publications
 
-lw=1;
-%gw=seq.gradient_waveforms();
-wave_data=seq.waveforms_and_times(true); % also export RF
-gwm=max(abs([wave_data{1:3}]'));
-rfm=max(abs([wave_data{4}]'));
-ofs=2.05*gwm(2);
+seq.paperPlot('blockRange',[1 41]);
 
-% plot "axes"
-figure; 
-axis_clr=[0.5,0.5,0.5];
-plot([-0.01*gwm(1),1.01*gwm(1)],[0 0]*ofs,'Color',axis_clr,'LineWidth',lw/5); hold on; 
-plot([-0.01*gwm(1),1.01*gwm(1)],[1 1]*ofs,'Color',axis_clr,'LineWidth',lw/5);
-plot([-0.01*gwm(1),1.01*gwm(1)],[2 2]*ofs,'Color',axis_clr,'LineWidth',lw/5);
-plot([-0.01*gwm(1),1.01*gwm(1)],[3 3]*ofs,'Color',axis_clr,'LineWidth',lw/5);
-
-% plot the RF waveform
-plot(wave_data{4}(1,:), abs(wave_data{4}(2,:))/rfm(2)*gwm(2)*0.75+3*ofs,'k','LineWidth',lw); 
-
-% plot the entire gradient waveforms
-plot(wave_data{3}(1,:), wave_data{3}(2,:)+2*ofs,'Color',[0,0.5,0.3],'LineWidth',lw); 
-plot(wave_data{2}(1,:), wave_data{2}(2,:)+1*ofs,'r','LineWidth',lw);
-plot(wave_data{1}(1,:), wave_data{1}(2,:),'b','LineWidth',lw);
-t_adc_gr=t_adc+0.5*seq.gradRasterTime; % we have to shift the time axis because it is otherwise adpted to the k-space, which is a one-sided integration of the trajectory
-gwr_adc=interp1(wave_data{1}(1,:), wave_data{1}(2,:),t_adc_gr);
-plot(t_adc_gr,gwr_adc,'b.','MarkerSize',5*lw); % and sampling points on the kx-axis
-
-xlim([-0.03*gwm(1),1.03*gwm(1)]);
-
-set(gca,'xtick',[]);
-set(gca,'xticklabel',[]);
-set(gca,'ytick',[]);
-set(gca,'yticklabel',[]);
-
+return
 %% very optional slow step, but useful for testing during development e.g. for the real TE, TR or for staying within slew rate limits  
 
 rep = seq.testReport; 
