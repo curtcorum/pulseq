@@ -26,11 +26,14 @@ if isempty(parser)
 end
 parse(parser, grad, timepoint, varargin{:});
 opt = parser.Results;
+
 if isempty(opt.system)
-    opt.system=mr.opts();
+    system=mr.opts();
+else
+    system=opt.system;
 end
 
-gradRasterTime = opt.system.gradRasterTime;
+gradRasterTime = system.gradRasterTime;
     
 % round the time point to the gradient raster;
 timeindex = round(timepoint / gradRasterTime);
@@ -68,8 +71,8 @@ if strcmp(grad.type, 'grad')
         return; % early return
     else
         % we have an extended trapezoid -- excellent choice!
-        times      = grad.tt;
-        amplitudes = grad.waveform;
+        times      = grad.tt';
+        amplitudes = grad.waveform'; % QC: to match the matrix size for times1 and amplitudes1 below. 2025.01.02
     end
 elseif strcmp(grad.type, 'trap')    
     grad.delay    = round(grad.delay   /gradRasterTime)*gradRasterTime; % MZ: was ceil
@@ -115,11 +118,11 @@ times2 = [ timepoint times(times>timepoint+teps) ] - timepoint;
 amplitudes2 = [ amp_tp amplitudes(times>timepoint+teps) ];
 
 % recreate gradients
-grad1 = mr.makeExtendedTrapezoid(ch, 'system', opt.system, 'times', times1,...
+grad1 = mr.makeExtendedTrapezoid(ch, 'system', system, 'times', times1,...
                                   'amplitudes', amplitudes1, ...
                                   'skip_check', true); 
 grad1.delay = grad.delay;
-grad2 = mr.makeExtendedTrapezoid(ch, 'system', opt.system, 'times', times2,...
+grad2 = mr.makeExtendedTrapezoid(ch, 'system', system, 'times', times2,...
                                   'amplitudes', amplitudes2, ...
                                   'skip_check', true); 
 grad2.delay = timepoint + grad.delay;
