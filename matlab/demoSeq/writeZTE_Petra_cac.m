@@ -19,7 +19,7 @@ R       = 16;           % acceleration/undersampling (for the outer shell)
 R_inner = 1;            % acceleration/undersampling (angular direction of the inner area)
 %xSpoil=3;%0.6;          %0.6 for 2mm % the amount of spoiling after the end of the readout (used to ramp to the next point
 tSpoil  = .00088;       % s of spoiling after ro, set to make TR 5ms for now *** 
-do_spi = true;          % do_spi = true; generate SPI blocks for PETRA, only ZTE if false
+do_spi = false;          % do_spi = true; generate SPI blocks for PETRA, only ZTE if false
 do_zte = true;
 ge_dt = 00e-6;         % 116e-6 s (rounded to 120us) refresh time for loading new waveforms on GE
 
@@ -195,7 +195,8 @@ Nv = sum( SamplesBookkeeping); % always does center SPI
 seq.setDefinition( 'Nv', Nv);
 
 seq.write( 'ztePetraCac.seq');
-return
+
+% return % to suppress SAR calc and plots
 
 %% create an RF-only version of the sequence (e.g. for the SAR or signal evolution testing)
 
@@ -214,8 +215,9 @@ for iB=1:total_numBlocks
     seq_sar.addBlock(bs);
 end
 toc
-seq_sar.write('ztPetraCaSar.seq');
-return
+seq_sar.write('ztePetraCacSar.seq');
+
+%return %uncomment to supress plots, etc.
 
 % %% test binary storing
 % 
@@ -230,9 +232,16 @@ tic;
 [kfa,~,kf]=seq.calculateKspacePP();
 toc
 
-%
-figure;plot3(kf(1,:),kf(2,:),kf(3,:));
-hold on;plot3(kfa(1,:),kfa(2,:),kfa(3,:),'r.');
+% K-Space Sampling Trajectory
+figure; plot3(kf(1,:),kf(2,:),kf(3,:));
+hold on; plot3(kfa(1,:),kfa(2,:),kfa(3,:),'r.');
+%figure; plot3(kfa(1,:),kfa(2,:),kfa(3,:));
+
+% Sequence plots
+seq.plot
+
+% Nice figure plots
+seq.paperPlot
 
 %% local functions
 
@@ -251,8 +260,9 @@ theta=acos(1-2*np/(Ns-1));  % from  Anton Semechko (2020). Suite of functions to
 xp=sin(theta).*cos(phi);
 yp=sin(theta).*sin(phi);
 zp=cos(theta);
-%figure; sphere; colormap gray;
-%hold on; plot3(xp,yp,zp,'.');
+
+figure; sphere; colormap gray;
+hold on; plot3(xp,yp,zp,'.');
 
 % looking for the optimal interleaving factor
 nm=round(Ns/2); % middle of the trajetory
