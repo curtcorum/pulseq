@@ -40,7 +40,8 @@ trig_out=mr.makeDigitalOutputPulse('ext1','duration', 100e-6,'delay',500e-6); % 
 
 % Create alpha-degree slice selection pulse and gradient
 [rf, gz] = mr.makeSincPulse(alpha*pi/180,'Duration',rf_duration,...
-    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4,'system',sys);
+    'SliceThickness',sliceThickness,'apodization',0.5,'timeBwProduct',4,'system',sys,...
+    'use', 'excitation');
 
 % Define other gradients and ADC events
 deltak=1/fov;
@@ -123,10 +124,10 @@ return
 
 %% plot sequence and k-space diagrams
 
-seq.plot('timeRange', [0 5*TR]);
+seq.plot('timeRange', (lines_per_segment*phases+[0 3])*TR, 'stacked', true); % now also in/out triggers are visible (triangles and diamonds)
 
-% new single-function call for trajectory calculation
-[ktraj_adc, ktraj, t_excitation, t_refocusing, t_adc] = seq.calculateKspace();
+% k-space trajectory calculation
+[ktraj_adc, t_adc, ktraj, t_ktraj, t_excitation, t_refocusing] = seq.calculateKspacePP();
 
 % plot k-spaces
 time_axis=(1:(size(ktraj,2)))*sys.gradRasterTime;

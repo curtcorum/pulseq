@@ -70,27 +70,40 @@ classdef SeqPlot < handle
                 parser.addParamValue('blockRange',[1 inf],@(x)(isnumeric(x) && length(x)==2));
                 parser.addParamValue('timeDisp',validTimeUnits{1},...
                     @(x) any(validatestring(x,validTimeUnits)));
-                parser.addOptional('label',[]);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
-                parser.addOptional('hide',false);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
-                parser.addOptional('stacked',false);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
-                parser.addOptional('showGuides',true);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
+                parser.addParamValue('label',[]);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
+                parser.addParamValue('hide',false);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
+                parser.addParamValue('stacked',false);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
+                parser.addParamValue('showGuides',true);%,@(x)(isstr(x)));%@(x) any(validatestring(x,validLabel))
             end
             parse(parser,varargin{:});
             opt = parser.Results;
+            
+            if mr.aux.isOctave()
+              if opt.stacked
+                warning('Option stacked is not (yet) supported by Octave');
+                opt.stacked=false;
+              end
+              if opt.showBlocks
+                warning('Option stacked is not (yet) supported by Octave');
+                opt.showBlocks=false;
+              end
+            end
 
             obj.f=figure;
             obj.hSeq=seq; % Sequence is a handle-class so copying is cheap...
 
             set(obj.f, 'Visible', 'off')
 
-            obj.ax = gobjects(1,6);
+            if ~mr.aux.isOctave()
+              obj.ax = gobjects(1,6);              
+            end
             for i=1:6
                 obj.ax(i)=subplot(3,2,i);
             end
             obj.ax=obj.ax([1 3 5 2 4 6]);   % Re-order axes
             arrayfun(@(x)hold(x,'on'),obj.ax);
             arrayfun(@(x)grid(x,'on'),obj.ax);
-            labels={'ADC/labels','RF mag (Hz)','RF/ADC ph (rad)','Gx (kHz/m)','Gy (kHz/m)','Gz (kHz/m)'};
+            labels={'ADC/lbl/trig','RF mag (Hz)','RF/ADC ph (rad)','Gx (kHz/m)','Gy (kHz/m)','Gz (kHz/m)'};
             arrayfun(@(x)ylabel(obj.ax(x),labels{x}),1:6);
             
             tFactorList = [1 1e3 1e6];
@@ -104,7 +117,7 @@ classdef SeqPlot < handle
             label_legend_2plot=[];
             for i=1:length(validLabel)
                 label_store.(validLabel{i})=0;
-                if ~isempty(strfind(upper(opt.label),validLabel{i}))
+                if ~isempty(opt.label) && ~isempty(strfind(upper(opt.label),validLabel{i}))
                     label_indexes_2plot=[label_indexes_2plot i];
                     label_legend_2plot=[label_legend_2plot; validLabel{i}];
                 end
@@ -125,8 +138,10 @@ classdef SeqPlot < handle
             end
             
             % data cursor callback
-            hDCM = datacursormode(obj.f);
-            hDCM.UpdateFcn = @(src, event)DataTipHandler(obj,tFactor,[timeFormat ' ' opt.timeDisp],src,event);
+            if ~mr.aux.isOctave()
+              hDCM = datacursormode(obj.f);
+              hDCM.UpdateFcn = @(src, event)DataTipHandler(obj,tFactor,[timeFormat ' ' opt.timeDisp],src,event);
+            end
 
             % time/block range
             timeRange=opt.timeRange;
@@ -139,7 +154,7 @@ classdef SeqPlot < handle
             end
             % block timings
             blockEdgesInRange=blockEdges(logical((blockEdges>=timeRange(1)).*(blockEdges<=timeRange(2))));
-            if (opt.timeDisp=='us')
+            if strcmp(opt.timeDisp,'us') && ~mr.aux.isOctave()
                 for i=1:6
                     xax=get(obj.ax(i),'XAxis');
                     xax.ExponentMode='manual';
@@ -166,8 +181,20 @@ classdef SeqPlot < handle
             % loop through blocks
             for iB=1:length(seq.blockEvents)
                 block = seq.getBlock(iB);
-                isValid = t0+seq.blockDurations(iB)>timeRange(1) && t0<=timeRange(2);
-                if isValid
+                if isfield(block,'rotation')
+                    % apply the rotation to the current block and restore the block structure
+                    c=mr.rotate3D(block.rotation.rotQuaternion,block,'system',seq.sys);
+                    for i=1:3
+                        block.(gradChannels{i})=[];
+                    end
+                    for i=1:length(c)
+                        if isstruct(c{i}) && isfield(c{i},'type') && isfield(c{i},'channel')
+                            block.(['g' c{i}.channel])=c{i};
+                        end
+                    end
+                end
+                if t0<=timeRange(2)
+                    % update the labels / counters even if we are below the display range
                     if isfield(block,'label') %current labels, works on the curent or next adc
                         for i=1:length(block.label)
                             if strcmp(block.label(i).type,'labelinc')
@@ -179,11 +206,32 @@ classdef SeqPlot < handle
                         end
                         label_defined=true;
                     end
+                end
+                isValid = t0+seq.blockDurations(iB)>timeRange(1) && t0<=timeRange(2);
+                if isValid
+                    if isfield(block,'trig') && ~isempty(block.trig)
+                        switch(block.trig.type)
+                            case 'output'
+                                % plot digital output triggers in the RF-TX pane
+                                p2x=plot(tFactor*(t0+block.trig.delay),0,'diamond','Color',[0 0.5 0],'Parent',obj.ax(1));
+                                p2x=plot(tFactor*(t0+block.trig.delay +[0 block.trig.duration]),[0 0],'-','Marker','.','Color',[0 0.5 0],'Parent',obj.ax(1));
+                            case 'trigger'
+                                p1x=plot(tFactor*(t0+block.trig.delay),0,'>b','Parent',obj.ax(1));
+                                p1x=plot(tFactor*(t0+block.trig.delay),0,'.b','Parent',obj.ax(1));
+                            %otherwise
+                        end
+                    end
                     if ~isempty(block.adc)
                         adc=block.adc;
-                        t=adc.delay + ((0:adc.numSamples-1)+0.5)*adc.dwell; % according to the imformation from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
+                        t=adc.delay + ((0:adc.numSamples-1)'+0.5)*adc.dwell; % according to the information from Klaus Scheffler and indirectly from Siemens this is the present convention (the samples are shifted by 0.5 dwell)
                         p1=plot(tFactor*(t0+t),zeros(size(t)),'rx','Parent',obj.ax(1));
-                        p2=plot(tFactor*(t0+t), angle(exp(1i*adc.phaseOffset).*exp(1i*2*pi*t*adc.freqOffset)),'b.','MarkerSize',1,'Parent',obj.ax(3)); % plot ADC phase
+                        if isempty(adc.phaseModulation)
+                            adc.phaseModulation=0;
+                        end
+                        full_freqOffset=adc.freqOffset+adc.freqPPM*1e-6*seq.sys.gamma*seq.sys.B0;
+                        full_phaseOffset=adc.phaseOffset+adc.phasePPM*1e-6*seq.sys.gamma*seq.sys.B0;
+                        p2=plot(tFactor*(t0+t), angle(exp(1i*(full_phaseOffset+adc.phaseModulation)).*exp(1i*2*pi*t*full_freqOffset)),'b.','MarkerSize',1,'Parent',obj.ax(3)); % plot ADC phase 
+                        % labels/counters/flags
                         if label_defined && ~isempty(label_indexes_2plot)
                             set(obj.ax(1),'ColorOrder',label_colors_2plot);
                             label_store_cell=struct2cell(label_store);
@@ -203,29 +251,43 @@ classdef SeqPlot < handle
                         if max(abs(diff(rf.t)-rf.t(2)+rf.t(1)))<1e-9 && length(rf.t)>100
                             % homogeneous sampling and long pulses -- use lower time resolution for better display and performance
                             dt=rf.t(2)-rf.t(1);
-                            st=round(seq.sys.gradRasterTime/dt);
+                            st=max(1,round(seq.sys.gradRasterTime/dt));
                             t=rf.t(1:st:end);
                             s=rf.signal(1:st:end);
+                            % always include the last point for the accurate display
+                            if (t(end)~=rf.t(end))
+                                t(end+1)=rf.t(end);
+                                s(end+1)=rf.signal(end);
+                            end
                         else
                             t=rf.t;
                             s=rf.signal;
                         end
                         sreal=max(abs(imag(s)))/max(abs(real(s)))<1e-6; %all(isreal(s));
+                        full_freqOffset=rf.freqOffset+rf.freqPPM*1e-6*seq.sys.gamma*seq.sys.B0;
+                        full_phaseOffset=rf.phaseOffset+rf.phasePPM*1e-6*seq.sys.gamma*seq.sys.B0;
+                        % If off-resonant and rectangular (2 samples), interpolate the pulse
+                        if (length(s) == 2) && (full_freqOffset ~= 0)
+                            numInterp = min(int32(abs(full_freqOffset)), 256);
+                            t = linspace(t(1), t(end), numInterp)';
+                            s = linspace(s(1), s(end), numInterp)';
+                        end
                         if abs(s(1))~=0 % fix strangely looking phase / amplitude in the beginning
                             s=[0; s];
                             t=[t(1); t];
                             %ic=ic+1;
                         end
-                        if abs(s(end))~=0 % fix strangely looking phase / amplitude in the beginning
+                        if abs(s(end))~=0 % fix strangely looking phase / amplitude at the end
                             s=[s; 0];
                             t=[t; t(end)];
                         end
+
                         if (sreal)
                             p1=plot(tFactor*(t0+t+rf.delay),  real(s),'Parent',obj.ax(2));
-                            p2=plot(tFactor*(t0+t+rf.delay),  angle(s.*sign(real(s))*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*rf.freqOffset)),'xb', 'Parent',obj.ax(3));
+                            p2=plot(tFactor*(t0+t+rf.delay),  angle(s.*sign(real(s))*exp(1i*full_phaseOffset).*exp(1i*2*pi*t    *full_freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*full_phaseOffset).*exp(1i*2*pi*tc*full_freqOffset)),'xb', 'Parent',obj.ax(3));
                         else
                             p1=plot(tFactor*(t0+t+rf.delay),  abs(s),'Parent',obj.ax(2));
-                            p2=plot(tFactor*(t0+t+rf.delay),  angle(s*exp(1i*rf.phaseOffset).*exp(1i*2*pi*t    *rf.freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*rf.phaseOffset).*exp(1i*2*pi*tc*rf.freqOffset)),'xb', 'Parent',obj.ax(3));
+                            p2=plot(tFactor*(t0+t+rf.delay),  angle(s*exp(1i*full_phaseOffset).*exp(1i*2*pi*t    *full_freqOffset)), tFactor*(t0+tc+rf.delay), angle(sc*exp(1i*full_phaseOffset).*exp(1i*2*pi*tc*full_freqOffset)),'xb', 'Parent',obj.ax(3));
                         end                        
                     end
                     for j=1:length(gradChannels)
@@ -253,17 +315,26 @@ classdef SeqPlot < handle
             dispRange = tFactor*[timeRange(1) min(timeRange(2),t0)];
             arrayfun(@(x)xlim(x,dispRange),obj.ax);
             linkaxes(obj.ax(:),'x')
-            h = zoom(obj.f);
-            setAxesZoomMotion(h,obj.ax(1),'horizontal');
+            if ~mr.aux.isOctave()
+              h = zoom(obj.f);
+              setAxesZoomMotion(h,obj.ax(1),'horizontal');
+            end
+            % manually fix the phase vertical scale to +- pi
+            ylim(obj.ax(3),[-pi pi]);
             % make Y-axes little bit less tight
             arrayfun(@(x) ylim(x, ylim(x) + 0.03*[-1 1]*sum(ylim(x).*[-1 1])), obj.ax(2:end));
+            
 
             if opt.showGuides
+              if mr.aux.isOctave()
+                warning('Option showGuides is not implemented in Octave');
+              else
                 % add vertical lines and make them follow the cursor
                 % x-position
                 for ii = 1:numel(obj.ax)
                     obj.vLines(ii) = xline(obj.ax(ii), 0, 'r--');
                 end
+              end
             end
 
             if opt.stacked
@@ -335,6 +406,10 @@ classdef SeqPlot < handle
                  ''};
             if isempty(rb.(field))
                 out{3}=['\bf\color{blue}blk:\rm\color{black}' num2str(iB)];
+                % we could add handling of the trigger/label data tips here
+                % specifically for the adc panel but it would imply a
+                % substantial performance hit because we'd have to unpack
+                % extensions, etc... 
             else
                 try
                     switch field(1)

@@ -1,14 +1,14 @@
 /**
   \page links Links
 
-In this page we collect a list of software packages which can read or write Pulseq files ar in any other ways rely on Pulseq. We admit that this list is by far incomplete and welcome you to contact us (preferably via the Discussions section) in case you'd like us to update the list.
+In this page we collect a list of software packages which can read or write Pulseq files or in any other ways rely on Pulseq. We admit that this list is by far incomplete and welcome you to contact us (preferably via the Discussions section) in case you'd like us to update the list.
 
 ## Open-source software with Pulseq support
 
 | Package | Type | In / Out | Web Link |
 |---------|------|--------|----------|
-| CMRseq | programming environment | import/export | https://people.ee.ethz.ch/~jweine/cmrseq/latest |
-| CMRsim | MR simulator | import | https://people.ee.ethz.ch/~jweine/cmrsim/latest |
+| CMRseq | programming environment | import/export | https://gitlab.ethz.ch/ibt-cmr/mri_simulation/cmrseq |
+| CMRsim | MR simulator | import | https://gitlab.ethz.ch/ibt-cmr/mri_simulation/cmrsim |
 | JEMRIS | MR simulator | export | https://www.jemris.org/ |
 | KomaMRI.jl | MR simulator | import/export | http://juliahealth.github.io/KomaMRI.jl |
 | MaRCoS / FLOCRA | MR console | import | https://github.com/stockmann-lab/flocra-pulseq |
@@ -21,9 +21,8 @@ In this page we collect a list of software packages which can read or write Puls
 | Package | Type | In / Out | Web Link |
 |---------|------|--------|----------|
 | coreMRI | MR simulator | import | http://corsmed.com/mri-simulator |
-| gammaSTAR | programming environment | export | https://gamma-star.mevis.fraunhofer.de/ |
+| gammaSTAR | programming environment | import/export | https://gamma-star.mevis.fraunhofer.de/ |
 | BlochSolver | MR simulator | import (to be confirmed) | http://www.blochsolver.org/ |
 
 */
-
 
